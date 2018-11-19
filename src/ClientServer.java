@@ -11,17 +11,18 @@ import java.util.List;
  * Created by HeTingwei on 2017/12/9.
  * 多线程服务器,实现多客户端聊天
  */
-public class Server {
+public class ClientServer {
 
     List<ReceiveThread> receiveList = new ArrayList<>();//存放已连接客户端类
     int MESSAGE_SIZE = 1024;//每次允许接受数据的最大长度
     int num = 0;//客户端编号
+    int localport = 19909;
 
-    public static void main(String[] args) {
-    	Server mServer = new Server();
-    }
+    /*public static void main(String[] args) {
+    	ClientServer mServer = new ClientServer();
+    }*/
 
-    public Server() {
+    public ClientServer() {
     	ServerHandle mServerHandle = new ServerHandle();
     	mServerHandle.start();
     }
@@ -38,7 +39,7 @@ public class Server {
         public void run() {
     		super.run();
             try {
-                serverSocket = new ServerSocket(19909);//用来监听的套接字，指定端口号
+                serverSocket = new ServerSocket(localport);//用来监听的套接字，指定端口号
                 while (true) {
                     Socket socket = serverSocket.accept();//监听客户端连接，阻塞线程
                     System.out.println("连接上客户端：" + num);
@@ -114,42 +115,8 @@ public class Server {
                 	}
                 	if (!desksocket.isConnected() || !socket.isConnected()) {
                 		stoprun();
+                		receiveList.remove(this);
                 	}
-                	/*if ((num = inputStream.read(b)) != -1) {
-                		desksocket.getOutputStream().write(b, 0, num);
-                	}*/
-                    /*b = splitByte(b);//去掉数组无用部分
-                    //发送end的客户端断开连接
-                    if (new String(b).equals("end")) {
-                        continueReceive = false;
-                        receiveList.remove(this);
-                        //通知其他客户端
-                        String message = "客户端" + num + "连接断开\n" +
-                                "现在在线的有，客户端：";
-                        for (ReceiveThread receiveThread : receiveList) {
-                            message = message + " " + receiveThread.num;
-                        }
-                        System.out.println(message);
-                        for (ReceiveThread receiveThread : receiveList) {
-                            new SendThread(receiveThread.socket, message).start();
-                        }
-                    } else {
-                        try {
-                            String[] data = new String(b).split(" ", 2);//以第一个空格，将字符串分成两个部分
-                            int clientNum = Integer.parseInt(data[0]);//转换为数字，即客户端编号数字
-                            //将消息发送给指定客户端
-                            for (ReceiveThread receiveThread : receiveList) {
-                                if (receiveThread.num == clientNum) {
-                                    new SendThread(receiveThread.socket, "客户端"+num+"发消息："+data[1]).start();
-                                    System.out.println("客户端" + num + "发送消息到客户端" + receiveThread.num + ": " + data[1]);
-                                }
-                            }
-                        } catch (Exception e) {
-                            new SendThread(socket, "输入错误，请重新输入").start();
-                            System.out.println("客户端输入错误");
-                        }
-
-                    }*/
                 }
             } catch (IOException e) {
                 e.printStackTrace();
