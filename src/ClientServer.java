@@ -5,22 +5,28 @@ import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-/**
- * Created by HeTingwei on 2017/12/9.
- * 多线程服务器,实现多客户端聊天
- */
 public class ClientServer {
 
-    List<ReceiveThread> receiveList = new ArrayList<>();//存放已连接客户端类
     int MESSAGE_SIZE = 1024;//每次允许接受数据的最大长度
     int num = 0;//客户端编号
-    int localport = 19909;
+    int remoteport = 19909;
+    int desk3389port = 19908;
+    
+    Socket clientsocket = null;
+    Socket desk3389socket = null;
+    InputStream clientin = null;
+    InputStream desk3389in = null;
+    OutputStream clientout = null;
+    OutputStream desk3389out = null;
+    ClientToDeskThread clientthread = null;
+    Desk3389ToClientThread desk3389thread = null;
 
-    /*public static void main(String[] args) {
+    public static void main(String[] args) {
     	ClientServer mServer = new ClientServer();
-    }*/
+    }
 
     public ClientServer() {
     	ServerHandle mServerHandle = new ServerHandle();
@@ -29,8 +35,6 @@ public class ClientServer {
     
     class ServerHandle extends Thread {
     	
-    	ServerSocket serverSocket = null;
-    	
     	public ServerHandle() {
     		
     	}
@@ -38,222 +42,195 @@ public class ClientServer {
     	@Override
         public void run() {
     		super.run();
-            try {
-                serverSocket = new ServerSocket(localport);//用来监听的套接字，指定端口号
-                while (true) {
-                    Socket socket = serverSocket.accept();//监听客户端连接，阻塞线程
-                    System.out.println("连接上客户端：" + num);
-                    //在其他线程处理接收来自客户端的消息
-                    ReceiveThread receiveThread = new ReceiveThread(socket, num);
-                    receiveThread.start();
-                    receiveList.add(receiveThread);
-
-                    //有客户端新上线，服务器就通知其他客户端
-                    /*String notice="有新客户端上线，现在在线客户端有：客户端:";
-                    for (ReceiveThread thread : receiveList) {
-                        notice = notice + "" + thread.num;
-                    }
-                    for (ReceiveThread thread : receiveList) {
-                        new SendThread(thread.socket, notice).start();
-                    }*/
-                    num++;
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    		clientthread = new ClientToDeskThread();
+            clientthread.start();
         }
     }
     
-    
+  //from client to desk
+    private class ClientToDeskThread extends Thread {
 
-    class ReceiveThread extends Thread {
-        int num;
-        Socket socket;//客户端对应的套接字
-        boolean continueReceive = true;//标识是否还维持连接需要接收
-        boolean hasDesk = false;
-        boolean deskrunning = false;
-        Socket desksocket;
-        DeskSendThread mDeskSendThread = null;
-        DeskReceiveThread mDeskReceiveThread = null;
+        boolean running = true;
+        boolean connected = false;
 
-        public ReceiveThread(Socket socket, int num) {
-            this.socket = socket;
-            this.num = num;
-            try {
-                //给连接上的客户端发送，分配的客户端编号的通知
-                socket.getOutputStream().write(("你的客户端编号是" + num).getBytes());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        public void stoprun() {
-        	continueReceive = false;
-        	if (mDeskSendThread != null) {
-        		mDeskSendThread.stoprun();
-        	}
-        	if (mDeskReceiveThread != null) {
-        		mDeskReceiveThread.stoprun();
-        	}
+        public ClientToDeskThread() {
+        	
         }
         
-        @Override
-        public void run() {
-            super.run();
-            //接收客户端发送的消息
-            try {
-                byte[] b = new byte[MESSAGE_SIZE];
-                int num = -1;
-                while (continueReceive) {
-                	if (desksocket == null) {
-                		desksocket = new Socket("127.0.0.1", 3389);
-                		hasDesk = true;
-                		mDeskSendThread = new DeskSendThread(desksocket, socket);
-                		mDeskReceiveThread = new DeskReceiveThread(desksocket, socket);
-                		mDeskReceiveThread.start();
-                		mDeskSendThread.start();
-                	}
-                	if (!desksocket.isConnected() || !socket.isConnected()) {
-                		stoprun();
-                		receiveList.remove(this);
-                	}
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                try {//关闭资源
-                    if (socket != null) {
-                        socket.close();
-                    }
-                    if (desksocket != null) {
-                    	desksocket.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-    
-    private class DeskSendThread extends Thread {
-        Socket mdesksocket;
-        Socket remotesocket;
-        boolean running = true;
-        InputStream remotein;
-        OutputStream deskout;
-
-        public DeskSendThread(Socket desksocket, Socket remotesocket) {
-            this.mdesksocket = desksocket;
-            this.remotesocket = remotesocket;
-        }
-
         public void stoprun() {
         	running = false;
+        	try {
+        		if (clientin != null) {
+        			clientin.close();
+        		}
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+        	try {
+        		if (clientout != null) {
+        			clientout.close();
+        			
+        		}
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+        	try {
+        		if (clientsocket != null) {
+        			clientsocket.close();
+    			}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+        	clientsocket = null;
+        	clientin = null;
+        	clientout = null;
         }
         
         @Override
         public void run() {
             super.run();
             try {
-				remotein = remotesocket.getInputStream();
-				deskout = mdesksocket.getOutputStream();
-	            byte[] buff = new byte[MESSAGE_SIZE];
+            	clientsocket = new Socket("opendiylib.com", remoteport);//用来监听的套接字，指定端口号
+            	clientin = clientsocket.getInputStream();
+            	clientout = clientsocket.getOutputStream();
+            	
+            	clientout.write("type:desktop-command:connect-password:qwertyuiopasdfghjklzxcvbnm-".getBytes("UTF-8"));
+            	byte[] buff = new byte[MESSAGE_SIZE];
+            	byte[] command = new byte[128];
 	            int num = -1;
+	            String receivemsg = null;
 	            while (running) {
-	            	if ((num = remotein.read(buff)) != -1) {
-	            		deskout.write(buff, 0, num);
-	            		//deskout.flush();
+	            	if ((num = clientin.read(buff)) != -1) {
+	            		Arrays.fill(command, (byte)(0));
+            			System.arraycopy(buff, 0, command, 0, num > command.length ? command.length : num);
+            			receivemsg = new String(command, "UTF-8");
+            			receivemsg = (receivemsg != null ? receivemsg.substring(0, num > command.length ? command.length : num) : null);
+            			System.out.println("ClientToDeskThread receivemsg = " + receivemsg);
+            			if (!connected) {
+            				if (receivemsg != null) {
+            					String[] result = receivemsg.split("-");
+                    			if (result != null && result.length >= 3) {
+                    				String type_temp = null;
+                    				String command_temp = null;
+                    				String passward_temp = null;
+                    				int length = ((result.length > 3) ? 3 : result.length);
+                    				for (int i = 0; i < length; i++) {
+                    					if (i == 0) {
+                    						type_temp = result[0].substring(5);
+                    					} else if (i == 1) {
+                    						command_temp = result[1].substring(8);
+                    					} else if (i == 2) {
+                    						passward_temp = result[2].substring(9);
+                    					}
+                    				}
+                    				if ("qwertyuiopasdfghjklzxcvbnm".equals(passward_temp) && "online".equals(command_temp)) {
+                    					connected = true;
+                    					desk3389thread = new Desk3389ToClientThread();
+                    					desk3389thread.start();
+                    					System.out.println("start desk3389thread");
+                    				}
+                    			}
+            				}
+            				
+            			} else if (desk3389out != null) {
+	            			desk3389out.write(buff, 0, num);
+		            		//deskout.flush();
+	            		}
 	            	} else {
-	            		stoprun();
+	            		//stoprun();
+	            		break;
 	            	}
 	            }
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
+				System.out.println("ClientToDeskThread exception");
 			} finally {
-                try {//关闭资源
-                    if (remotein != null) {
-                    	remotein.close();
-                    }
-                    if (deskout != null) {
-                    	deskout.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+				stoprun();
             }
+            //stoprun();
         }
     }
     
-    class DeskReceiveThread extends Thread {
-        Socket mdesksocket;
-        Socket remotesocket;
-        boolean running = true;
-        InputStream deskin;
-        OutputStream remoteout;
+    //from desk to client
+    class Desk3389ToClientThread extends Thread {
 
-        public DeskReceiveThread(Socket desksocket, Socket remotesocket) {
-            this.mdesksocket = desksocket;
-            this.remotesocket = remotesocket;
+        boolean running = true;
+        boolean connected = false;
+
+        public Desk3389ToClientThread() {
+            
         }
 
         public void stoprun() {
         	running = false;
+        	connected = false;
+        	try {
+        		if (desk3389in != null) {
+        			desk3389in.close();
+        		}
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+        	try {
+        		if (desk3389out != null) {
+        			desk3389out.close();
+        		}
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+        	try {
+        		if (desk3389socket != null) {
+        			desk3389socket.close();
+    			}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+        	desk3389socket = null;
+        	desk3389out = null;
+        	desk3389in = null;
         }
         
         @Override
         public void run() {
             super.run();
             try {
-            	deskin = mdesksocket.getInputStream();
-            	remoteout = remotesocket.getOutputStream();
+            	desk3389socket = new Socket("127.0.0.1", desk3389port);//用来监听的套接字，指定端口号
+            	desk3389in = desk3389socket.getInputStream();
+            	desk3389out = desk3389socket.getOutputStream();
 	            byte[] buff = new byte[MESSAGE_SIZE];
+	            byte[] command = new byte[128];
 	            int num = -1;
+	            String receivemsg = null;
 	            while (running) {
-	            	if ((num = deskin.read(buff)) != -1) {
-	            		remoteout.write(buff, 0, num);
-	            		//deskout.flush();
+	            	if ((num = desk3389in.read(buff)) != -1) {
+	            		Arrays.fill(command, (byte)(0));
+            			System.arraycopy(buff, 0, command, 0, num > command.length ? command.length : num);
+            			receivemsg = new String(command, "UTF-8");
+            			receivemsg = (receivemsg != null ? receivemsg.substring(0, num > command.length ? command.length : num) : null);
+            			System.out.println("Desk3389ToClientThread receivemsg = " + receivemsg);
+	            		if (clientout != null) {
+	            			clientout.write(buff, 0, num);
+	            			//clientout.flush();
+	            		}
 	            	} else {
-	            		stoprun();
+	            		break;
 	            	}
 	            }
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
+				System.out.println("Desk3389ToClientThread exception");
 			} finally {
-                try {//关闭资源
-                    if (deskin != null) {
-                    	deskin.close();
-                    }
-                    if (remoteout != null) {
-                    	remoteout.close();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+				stoprun();
             }
         }
     }
     
-    //发送消息的线程
-    class SendThread extends Thread {
-        Socket socket;
-        String str;
-
-        public SendThread(Socket socket, String str) {
-            this.socket = socket;
-            this.str = str;
-        }
-
-        @Override
-        public void run() {
-            super.run();
-            try {
-                socket.getOutputStream().write(str.getBytes());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-        }
-    }
 }

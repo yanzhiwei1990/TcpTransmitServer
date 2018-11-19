@@ -110,9 +110,9 @@ public class HostServer {
             		System.out.println("receivemsg num = " + num);
             		if (num != -1) {
             			Arrays.fill(command, (byte)('\0'));
-            			System.arraycopy(b, 0, command, 0, num);
+            			System.arraycopy(b, 0, command, 0, num > command.length ? command.length : num);
             			receivemsg = new String(command, "UTF-8");
-            			receivemsg = (receivemsg != null ? receivemsg.substring(0, num) : null);
+            			receivemsg = (receivemsg != null ? receivemsg.substring(0, num > command.length ? command.length : num) : null);
             			System.out.println("receivemsg = " + receivemsg);
             		} else {
             			System.out.println("close current socket: " + currentsockettype);
@@ -165,7 +165,7 @@ public class HostServer {
                     					deskout = desksocket.getOutputStream();
                     					deskin = in;//desksocket.getInputStream();
                     					//deskin.skip(num);
-                    					deskout.write("desksocket online".getBytes("UTF-8"));
+                    					deskout.write("type:desk-command:online-password:qwertyuiopasdfghjklzxcvbnm-".getBytes("UTF-8"));
                     					if (clientout != null) {
                     						clientout.write("desksocket online".getBytes("UTF-8"));
                     					}
@@ -187,7 +187,7 @@ public class HostServer {
                     					//clientin.skip(num);
                     					clientout.write("clientsocket online".getBytes("UTF-8"));
                     					if (deskout != null) {
-                    						deskout.write("clientsocket online".getBytes("UTF-8"));
+                    						deskout.write("type:client-command:online-password:qwertyuiopasdfghjklzxcvbnm-".getBytes("UTF-8"));
                     					}
                     				}
                     				//restartClientSocketMatch();
@@ -367,12 +367,19 @@ public class HostServer {
             		return;
             	}
 	            byte[] buff = new byte[MESSAGE_SIZE];
+	            byte[] command = new byte[128];
 	            int num = -1;
+	            String receivemsg = null;
 	            while (running) {
 	            	if (clientin == null) {
 	            		continue;
 	            	}
 	            	if ((num = clientin.read(buff)) != -1) {
+	            		Arrays.fill(command, (byte)(0));
+            			System.arraycopy(buff, 0, command, 0, num > command.length ? command.length : num);
+            			receivemsg = new String(command, "UTF-8");
+            			receivemsg = (receivemsg != null ? receivemsg.substring(0, num > command.length ? command.length : num) : null);
+            			System.out.println("ClientToDeskThread receivemsg = " + receivemsg);
 	            		if (deskout != null) {
 	            			deskout.write(buff, 0, num);
 		            		//deskout.flush();
@@ -446,9 +453,16 @@ public class HostServer {
             		return;
             	}
 	            byte[] buff = new byte[MESSAGE_SIZE];
+	            byte[] command = new byte[128];
 	            int num = -1;
+	            String receivemsg = null;
 	            while (running) {
 	            	if ((num = deskin.read(buff)) != -1) {
+	            		Arrays.fill(command, (byte)(0));
+            			System.arraycopy(buff, 0, command, 0, num > command.length ? command.length : num);
+            			receivemsg = new String(command, "UTF-8");
+            			receivemsg = (receivemsg != null ? receivemsg.substring(0, num > command.length ? command.length : num) : null);
+            			System.out.println("DeskToClientThread receivemsg = " + receivemsg);
 	            		if (clientout != null) {
 	            			clientout.write(buff, 0, num);
 	            			//clientout.flush();
