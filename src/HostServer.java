@@ -32,9 +32,9 @@ public class HostServer {
     OutputStream deskout = null;
     OutputStream clientout = null;
 
-    public static void main(String[] args) {
+    /*public static void main(String[] args) {
     	HostServer mServer = new HostServer();
-    }
+    }*/
 
     public HostServer() {
     	ServerHandle mServerHandle = new ServerHandle();
@@ -104,7 +104,7 @@ public class HostServer {
                 in = socket.getInputStream();
                 while (continueReceive) {
             		receivemsg = null;
-            		num = in.read(b, 0, 128);
+            		num = in.read(b);
             		//read for socket type or message: type:*-command:*-password:qwertyuiopasdfghjklzxcvbnm- 
             		//type:desktop-command:connect-  type:client-command:connect-
             		System.out.println("receivemsg num = " + num);
@@ -125,7 +125,8 @@ public class HostServer {
             			}
             			break;
             		}
-            		if ((currentsockettype == null && receivemsg == null)  || receivemsg != null) {
+            		
+            		if (desksocket == null/*(currentsockettype == null && receivemsg == null)  || receivemsg != null*/) {
             			String[] result = receivemsg.split("-");
             			if (result != null && result.length >= 3) {
             				//currentsockettype = null;
@@ -174,7 +175,7 @@ public class HostServer {
                     				startDesktopMatch();
                     				System.out.println("desksocket online");
                     				break;
-                    			} else if ("client".equals(currentsockettype) && "connect".equals(currentsocketcommand)) {
+                    			}/* else if ("client".equals(currentsockettype) && "connect".equals(currentsocketcommand)) {
                     				if (clientsocket != null) {
                     					clientsocket.close();
                     					clientsocket = null;
@@ -194,7 +195,7 @@ public class HostServer {
                     				startClientMatch();
                     				System.out.println("clientsocket online");
                     				break;
-                    			}
+                    			}*/
                     			/*if (desksocket != null && clientsocket != null) {
                     				if (desksocket.isConnected() && clientsocket.isConnected()) {
                     					System.out.println("remote desk ready to control desk");
@@ -204,7 +205,7 @@ public class HostServer {
                     			}*/
                     			
                     		} else {
-                    			System.out.println("invalid socket");
+                    			
                     			break;
                     		}
             			} else if (currentsockettype != null && (receivemsg.equals("close") || receivemsg.equals("exit"))) {
@@ -217,6 +218,40 @@ public class HostServer {
                 			break;
             			} 
             		} else {
+            			System.out.println("may be client socket = " + socket.getRemoteSocketAddress().toString() + ":" + socket.getPort());
+            			if (desksocket != null) {
+            				if (clientsocket != null) {
+            					clientsocket.close();
+            					clientsocket = null;
+            				}
+            				stopClientSocketMatch();
+            				clientsocket = socket;
+            				if (clientsocket != null) {
+            					clientout = clientsocket.getOutputStream();
+            					clientin = in;//clientsocket.getInputStream();
+            					//clientin.skip(num);
+            					/*clientout.write("clientsocket online".getBytes("UTF-8"));*/
+            					if (deskout != null) {
+            						//deskout.write("type:client-command:online-password:qwertyuiopasdfghjklzxcvbnm-".getBytes("UTF-8"));
+            						deskout.write(b, 0, num);
+            					}
+            				}
+            				//restartClientSocketMatch();
+            				startClientMatch();
+            				System.out.println("clientsocket online");
+            				//break;
+                		} else {
+                			try {//¹Ø±Õ×ÊÔ´
+	                            if (socket != null) {
+	                                socket.close();
+	                            }
+	                            if (in != null) {
+	                            	in.close();
+	                            }
+	                        } catch (IOException e) {
+	                            e.printStackTrace();
+	                        }
+                		}
             			break;
             		}
                 }

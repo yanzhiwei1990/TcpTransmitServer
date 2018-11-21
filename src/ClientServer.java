@@ -10,10 +10,10 @@ import java.util.List;
 
 public class ClientServer {
 
-    int MESSAGE_SIZE = 1024;//每次允许接受数据的最大长度
+    int MESSAGE_SIZE = 4096;//每次允许接受数据的最大长度
     int num = 0;//客户端编号
     int remoteport = 19909;
-    int desk3389port = 19908;
+    int desk3389port = 19908;//3389;
     
     Socket clientsocket = null;
     Socket desk3389socket = null;
@@ -87,6 +87,8 @@ public class ClientServer {
         	clientsocket = null;
         	clientin = null;
         	clientout = null;
+        	desk3389thread.stoprun();
+        	run();
         }
         
         @Override
@@ -109,7 +111,7 @@ public class ClientServer {
             			receivemsg = new String(command, "UTF-8");
             			receivemsg = (receivemsg != null ? receivemsg.substring(0, num > command.length ? command.length : num) : null);
             			System.out.println("ClientToDeskThread receivemsg = " + receivemsg);
-            			if (!connected) {
+            			if (desk3389socket == null) {
             				if (receivemsg != null) {
             					String[] result = receivemsg.split("-");
                     			if (result != null && result.length >= 3) {
@@ -135,10 +137,13 @@ public class ClientServer {
                     			}
             				}
             				
-            			} else if (desk3389out != null) {
-	            			desk3389out.write(buff, 0, num);
-		            		//deskout.flush();
-	            		}
+            			} else {
+            				System.out.println("send to desk3389");
+            				if (desk3389out != null) {
+            					desk3389out.write(buff, 0, num);
+    	            			//clientout.flush();
+    	            		}
+            			}
 	            	} else {
 	            		//stoprun();
 	            		break;
